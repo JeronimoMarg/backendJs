@@ -4,6 +4,8 @@ const app = express()
 
 app.use(express.json())
 
+app.use(express.static('dist'))
+
 //Se crea el token "body" para poder acceder al body del request en forma de string
 morgan.token('body', (req) => JSON.stringify(req.body))
 //Con ese token + los tokens de la configuracion tiny se arma la string de log
@@ -88,13 +90,35 @@ app.post('/api/persons', (request, response) => {
 
 })
 
+app.put('/api/persons/:id', (request, response) => {
+    console.log('PUT request', request.body)
+    const id = request.params.id
+    const body = request.body
+    if(!body.name){
+        return response.status(400).json({
+            error: 'name missing'
+        })
+    }else if(!body.number){
+        return response.status(400).json({
+            error: 'number missing'
+        })
+    }
+    const persona = {
+        id: id,
+        name: body.name,
+        number: body.number
+    }
+    persons = persons.map(p => p.id === id ? persona : p)
+    response.json(persona)
+})
+
 const unknownEndpoint = (request, response) => {
     response.status(404).send({ error: 'unknown endpoint' })
   }
   
 app.use(unknownEndpoint)
 
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })
