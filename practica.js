@@ -1,115 +1,117 @@
-const express = require('express')
-const morgan = require('morgan')
-const app = express()
+require('dotenv').config()
+const Person = require('./models/person')
 
+const express = require('express')
+const app = express()
 app.use(express.json())
 
 app.use(express.static('dist'))
 
+const morgan = require('morgan')
+const note = require('./models/note')
 //Se crea el token "body" para poder acceder al body del request en forma de string
 morgan.token('body', (req) => JSON.stringify(req.body))
 //Con ese token + los tokens de la configuracion tiny se arma la string de log
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'))
 
-let persons = 
-[
-    { 
-      "id": "1",
-      "name": "Arto Hellas", 
-      "number": "040-123456"
-    },
-    { 
-      "id": "2",
-      "name": "Ada Lovelace", 
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": "3",
-      "name": "Dan Abramov", 
-      "number": "12-43-234345"
-    },
-    { 
-      "id": "4",
-      "name": "Mary Poppendieck", 
-      "number": "39-23-6423122"
-    }
-]
+//---------------------------------------------------------------------------------------------//
 
+//Pagina de bienvenida
 app.get('/info', (request, response) => {
-    logger(request, response)
-    response.send(`<p>Phonebook has info for ${persons.length} people</p><p>${new Date()}</p>`)
+    Person.countDocuments().then(count => {
+        response.send(`<p>Phonebook has info for ${count} people</p><p>${new Date()}</p>`)
+    }).catch(error => {
+        response.status(500).send({error: "server error"})
+    })
 })
 
+//Obtener todas las personas
 app.get('/api/persons', (request, response) => {
-    response.json(persons)
+    Person
+    .find({})
+    .then(personas => response.json(personas))
 })
 
+//Obtener una persona en especifico por id
 app.get('/api/persons/:id', (request, response) => {
     const id = request.params.id
-    const persona = persons.find(p => p.id===id)
-    if(persona){
-        response.json(persona)
-    }else{
-        response.status(404).end()
-    }
+    Person
+    .findById(id)
+    .then(per => {
+        if(per){
+            response.json(per)
+        }else{
+            response.status(404).send({error: 'persona no encontrada'})
+        }
+    })
+    .catch(error => {
+        response.status(500).send({error: "server error"})
+    })
 })
 
+//Eliminar una persona segun id
 app.delete('/api/persons/:id', (request, response) => {
     const id = request.params.id
-    const persona = persons.find(p => p.id===id)
-    if (persona){
+    Person
+    .findByIdAndDelete(id)
+    .then(() =>{
         response.status(204).end()
-        persons = persons.filter(p => p.id !== id)
-    }else{
-        //Quizas es error de seguridad poner 404 en vez de 204 para una persona que no existe
-        response.status(404).end()
-    }
+    })
+    .catch(error => {
+        console.log(error)
+        response.status(500).send({error: "server error"})
+    })
 })
 
+//Crear una persona
 app.post('/api/persons', (request, response) => {
     const body = request.body   //obtiene el json del body
     if(!body.name){
-        return response.status(400).json({
-            error: 'name missing'
-        })
+        return response.status(400).json({error: 'name missing'})
     }else if(!body.number){
-        return response.status(400).json({
-            error: 'number missing'
-        })
+        return response.status(400).json({error: 'number missing'})
     }
 
-    const persona = {
-        id: String(Math.floor(Math.random() * 1000)),
+    const persona = new Person({
         name: body.name,
         number: body.number
-    }
+    })
 
-    persons = persons.concat(persona)
-
-    response.json(persona)
-
+    persona
+    .save()
+    .then(resultado => {
+        response.json(resultado)
+    })
+    .catch(error => {
+        console.log(error)
+        response.status(500).send({error: "server error"})
+    })
 })
 
+//Actualizar persona segun id
 app.put('/api/persons/:id', (request, response) => {
-    console.log('PUT request', request.body)
     const id = request.params.id
     const body = request.body
     if(!body.name){
-        return response.status(400).json({
-            error: 'name missing'
-        })
+        return response.status(400).json({error: 'name missing'})
     }else if(!body.number){
-        return response.status(400).json({
-            error: 'number missing'
-        })
+        return response.status(400).json({error: 'number missing'})
     }
+
     const persona = {
-        id: id,
         name: body.name,
         number: body.number
     }
-    persons = persons.map(p => p.id === id ? persona : p)
-    response.json(persona)
+
+    Person
+    .findByIdAndUpdate(id, persona, {new:true})
+    .then(resultado => {
+        response.json(resultado)
+    })
+    .catch(error => {
+        console.log(error)
+        response.status(500).send({error: "server error"})
+    })
 })
 
 const unknownEndpoint = (request, response) => {
@@ -118,7 +120,7 @@ const unknownEndpoint = (request, response) => {
   
 app.use(unknownEndpoint)
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })

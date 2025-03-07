@@ -12,6 +12,15 @@ app.use(express.static('dist'))
 
 //---------------------------------------------------------------------------------------------//
 
+/* //Funcion antigua para generar IDs de objetos
+const generateId = () => {
+  const maxId = notes.length > 0
+    ? Math.max(...notes.map(n => Number(n.id)))
+    : 0
+  return String(maxId + 1)
+}
+*/
+
 //Pagina de bienvenida?
 app.get('/', (request, response) => {
     response.send('<h1>Hello World!</h1>')
@@ -47,15 +56,6 @@ app.delete('/api/notes/:id', (request, response) => {
       response.status(500).send({error: "Server error"})
     })
 })
-
-/* //Funcion antigua para generar IDs de objetos
-const generateId = () => {
-  const maxId = notes.length > 0
-    ? Math.max(...notes.map(n => Number(n.id)))
-    : 0
-  return String(maxId + 1)
-}
-*/
 
 //Crear una nueva nota
 app.post('/api/notes', (request, response) => {
