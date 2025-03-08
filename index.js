@@ -12,15 +12,6 @@ app.use(express.static('dist'))
 
 //---------------------------------------------------------------------------------------------//
 
-/* //Funcion antigua para generar IDs de objetos
-const generateId = () => {
-  const maxId = notes.length > 0
-    ? Math.max(...notes.map(n => Number(n.id)))
-    : 0
-  return String(maxId + 1)
-}
-*/
-
 //Pagina de bienvenida?
 app.get('/', (request, response) => {
     response.send('<h1>Hello World!</h1>')
@@ -58,12 +49,15 @@ app.delete('/api/notes/:id', (request, response) => {
 })
 
 //Crear una nueva nota
-app.post('/api/notes', (request, response) => {
+app.post('/api/notes', (request, response, next) => {
   const body = request.body
 
+  //Se puede sacar esta parte del codigo ya que la validacion se hace con Mongoose.
+  /*
   if (!body.content) {
     return response.status(400).json({ error: 'content missing'})
   }
+  */
 
   const note = new Note({
     content: body.content,
@@ -73,26 +67,33 @@ app.post('/api/notes', (request, response) => {
   note.save().then(result => {
     console.log('note saved!', result)
     response.json(result)
-  })
+  }).catch(error => next(error))
 })
 
 //Update de la nota
 app.put('/api/notes/:id', (request, response, next) => {
   const id = request.params.id
   const body = request.body
+
+  //Se puede sacar esta parte del codigo ya que la validacion se hace con Mongoose.
+  /*
   if(!body.content){
       return response.status(400).json({
           error: 'content missing'
       })
   }
+  */
+
   const note = {
       content: body.content,
       important: body.important || false
   }
 
-  Note.findByIdAndUpdate(id, note, {new:true}).then(updated => {
+  Note.findByIdAndUpdate(id, note, {new:true, runValidators:true, context: 'query'})
+  .then(updated => {
     response.json(updated)
-  }).catch(error => next(error))
+  })
+  .catch(error => next(error))
   
 })
 
@@ -106,6 +107,9 @@ const errorHandler = (error, request, response, next) => {
 
   if (error.name === 'CastError') {
     return response.status(400).send({ error: 'malformatted id' })
+  }
+  else if (error.name === "ValidationError"){
+    return response.status(400).json({error: "content of note is missing / has to be over 3 char"})
   } 
 
   next(error)

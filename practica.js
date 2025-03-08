@@ -17,24 +17,27 @@ app.use(morgan(':method :url :status :res[content-length] - :response-time ms :b
 //---------------------------------------------------------------------------------------------//
 
 //Pagina de bienvenida
-app.get('/info', (request, response) => {
-    Person.countDocuments().then(count => {
+app.get('/info', (request, response, next) => {
+    Person
+    .countDocuments()
+    .then(count => {
         response.send(`<p>Phonebook has info for ${count} people</p><p>${new Date()}</p>`)
-    }).catch(error => {
-        response.status(500).send({error: "server error"})
     })
+    .catch(error => next(error))
 })
 
 //Obtener todas las personas
-app.get('/api/persons', (request, response) => {
+app.get('/api/persons', (request, response, next) => {
     Person
     .find({})
     .then(personas => response.json(personas))
+    .catch(error => next(error))
 })
 
 //Obtener una persona en especifico por id
-app.get('/api/persons/:id', (request, response) => {
+app.get('/api/persons/:id', (request, response, next) => {
     const id = request.params.id
+
     Person
     .findById(id)
     .then(per => {
@@ -44,34 +47,24 @@ app.get('/api/persons/:id', (request, response) => {
             response.status(404).send({error: 'persona no encontrada'})
         }
     })
-    .catch(error => {
-        response.status(500).send({error: "server error"})
-    })
+    .catch(error => next(error))
 })
 
 //Eliminar una persona segun id
-app.delete('/api/persons/:id', (request, response) => {
+app.delete('/api/persons/:id', (request, response, next) => {
     const id = request.params.id
+
     Person
     .findByIdAndDelete(id)
     .then(() =>{
         response.status(204).end()
     })
-    .catch(error => {
-        console.log(error)
-        response.status(500).send({error: "server error"})
-    })
+    .catch(error => next(error))
 })
 
 //Crear una persona
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
     const body = request.body   //obtiene el json del body
-    if(!body.name){
-        return response.status(400).json({error: 'name missing'})
-    }else if(!body.number){
-        return response.status(400).json({error: 'number missing'})
-    }
-
     const persona = new Person({
         name: body.name,
         number: body.number
@@ -82,22 +75,13 @@ app.post('/api/persons', (request, response) => {
     .then(resultado => {
         response.json(resultado)
     })
-    .catch(error => {
-        console.log(error)
-        response.status(500).send({error: "server error"})
-    })
+    .catch(error => next(error))
 })
 
 //Actualizar persona segun id
-app.put('/api/persons/:id', (request, response) => {
+app.put('/api/persons/:id', (request, response, next) => {
     const id = request.params.id
     const body = request.body
-    if(!body.name){
-        return response.status(400).json({error: 'name missing'})
-    }else if(!body.number){
-        return response.status(400).json({error: 'number missing'})
-    }
-
     const persona = {
         name: body.name,
         number: body.number
@@ -106,19 +90,46 @@ app.put('/api/persons/:id', (request, response) => {
     Person
     .findByIdAndUpdate(id, persona, {new:true})
     .then(resultado => {
-        response.json(resultado)
+        if (resultado) {
+            response.json(resultado)
+        } else {
+            response.status(404).send({ error: 'persona no encontrada' })
+        }
     })
-    .catch(error => {
-        console.log(error)
-        response.status(500).send({error: "server error"})
-    })
+    .catch(error => next(error))
 })
 
 const unknownEndpoint = (request, response) => {
     response.status(404).send({ error: 'unknown endpoint' })
   }
-  
 app.use(unknownEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+    console.log(error.message)
+    if(error.name === 'CastError'){
+        return response.status(400).send({error:'malformatted id'})
+    }
+    else if(error.name === 'ValidationError'){
+        //console.log(error.errors)   //loggear todos los errores
+        if (error.errors.name && error.errors.name.kind === 'required') {
+            return response.status(400).send({error: 'name missing'});
+        }
+        if (error.errors.number && error.errors.number.kind === 'required') {
+            return response.status(400).send({error: 'number missing'});
+        }
+        if (error.errors.name && error.errors.name.kind === 'minlength') {
+            return response.status(400).send({error: 'name too short, min 3 letters'});
+        }
+        if (error.errors.number && error.errors.number.kind === 'user defined'){
+            return response.status(400).send({error: 'number in incorrect format'});
+        }
+        return response.status(400).send({error: 'name/number not valid'});
+    }
+    else{
+        return response.status(500).send({error:'server error'})
+    }
+}
+app.use(errorHandler)
 
 const PORT = process.env.PORT
 app.listen(PORT, () => {
